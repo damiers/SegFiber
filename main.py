@@ -1,6 +1,5 @@
-import os
-from src.seger import Seger
-from src.utils.dbio import segs2db
+from seg_fiber import Seger
+from seg_fiber import segs2db
 
 def seg_fiber(input_path:str, output_path:str, cuda_device_id:int=0,
               channel:int=0, bg_thres:int=200, chunk_size:int=300, splice:int=100000,

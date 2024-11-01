@@ -27,11 +27,11 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["src", "src.*"]
+include = ["seg_fiber", "seg_fiber.*"]
 
 
 [options.packages.find]
-where = "src"
+where = "seg_fiber"
 
 [build-system]
 requires = ["setuptools>=42", "wheel"]
