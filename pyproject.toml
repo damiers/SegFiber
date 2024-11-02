@@ -33,6 +33,9 @@ include = ["seg_fiber", "seg_fiber.*"]
 [options.packages.find]
 where = "seg_fiber"
 
+[tool.setuptools.package-data]
+"seg_fiber.model" = ["*.pth"]
+
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
