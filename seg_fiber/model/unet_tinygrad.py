@@ -4,8 +4,6 @@ from tinygrad import nn
 from tinygrad.tensor import Tensor
 from tinygrad.helpers import get_child
 
-import torch
-
 class BatchNorm3d:
     def __init__(self, sz, eps=1e-5, affine=True, track_running_stats=True, momentum=0.1):
         self.eps, self.track_running_stats, self.momentum = eps, track_running_stats, momentum
@@ -73,9 +71,6 @@ class UNet3D:
     def load_from_pretrained(self,ckpt_path):
         # state_dict = torch.load(ckpt_path,map_location='cpu', weights_only=False)
         state_dict = nn.state.torch_load(ckpt_path)
-        if 'model' in state_dict.keys():
-            state_dict = state_dict['model']
-            torch.save(state_dict, ckpt_path)
         state_dict = {k.replace('module.',''):v for k,v in state_dict.items()}
         for k, v in state_dict.items():
             obj = get_child(self, k)
