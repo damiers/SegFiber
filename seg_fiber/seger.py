@@ -11,14 +11,17 @@ from .utils.image_reader import wrap_image
 from .model.unet_tinygrad import SegNet
 
 package_dir = os.path.dirname(os.path.abspath(__file__))
-default_seger_weight_path = os.path.join(package_dir,'model/universal_tiny.pth')
+default_seger_weight_path = os.path.join(package_dir,'model/universal_tiny.safetensors')
 
 class Seger():
-    def __init__(self,ckpt_path=default_seger_weight_path,bg_thres=200,cuda_device_id:int=0):
-        self.seg_net = SegNet(ckpt_path,bg_thres)
+    def __init__(self,ckpt_path=None,bg_thres=200,cuda_device_id:int=0):
+        if ckpt_path is None:
+            ckpt_path = default_seger_weight_path
+
+        self.seg_net = SegNet(ckpt_path,bg_thres)        
         # border width
         self.bw = 4
-
+        
         os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_device_id)
 
     def postprocess(self,mask,min_size=50):

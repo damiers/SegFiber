@@ -2,6 +2,7 @@ import os
 import numpy as np
 from tinygrad import nn
 from tinygrad.tensor import Tensor
+from tinygrad.nn.state import load_state_dict,safe_load
 from tinygrad.helpers import get_child
 
 class BatchNorm3d:
@@ -12,7 +13,7 @@ class BatchNorm3d:
         else: self.weight, self.bias = None, None
 
         self.running_mean, self.running_var = Tensor.zeros(sz, requires_grad=False), Tensor.ones(sz, requires_grad=False)
-        self.num_batches_tracked = Tensor.zeros(0, requires_grad=False)
+        self.num_batches_tracked = Tensor.zeros((), requires_grad=False)
 
     def __call__(self, x:Tensor):
         # for inference only
@@ -81,7 +82,7 @@ class UNet3D:
 
 
 class SegNet():
-    def __init__(self,ckpt_path,bg_thres=150):
+    def __init__(self,ckpt_path:str,bg_thres=150):
         # TODO: remove this after conflicts with conda were solved
         os.environ['METAL_XCODE'] = '1'
         os.environ['DISABLE_COMPILER_CACHE'] = '1'
@@ -93,7 +94,12 @@ class SegNet():
         elif 'dumpy' in ckpt_path:
             model_dims = [64,128,256]
         model = UNet3D(1, model_dims, 1)
-        model.load_from_pretrained(ckpt_path)
+
+        if ckpt_path.endswith('.pth'):
+            model.load_from_pretrained(ckpt_path)
+        elif ckpt_path.endswith('.safetensors'):    
+            state_dict = safe_load(ckpt_path)
+            load_state_dict(model, state_dict)
 
         self.model = model
         self.bg_thres = bg_thres
@@ -135,3 +141,8 @@ class SegNet():
         else:
             return np.zeros_like(img)
 
+
+if __name__ == '__main__':
+    import os
+    os.environ['DEBUG']="4"
+    SegNet('tiny')
