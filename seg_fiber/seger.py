@@ -16,10 +16,10 @@ default_seger_weight_path = os.path.join(package_dir,'model/universal_tiny.safet
 class Seger():
     def __init__(self,ckpt_path=None,bg_thres=200,cuda_device_id:int=0):
         os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_device_id)
+        print(f"=== CUDA_VISIBLE_DEVICES: {os.getenv('CUDA_VISIBLE_DEVICES')} ===")
 
         if ckpt_path is None:
             ckpt_path = default_seger_weight_path
-
         self.seg_net = SegNet(ckpt_path,bg_thres)        
         # border width
         self.bw = 4
