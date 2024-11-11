@@ -23,7 +23,8 @@ dependencies = [
     'tqdm',
     'scipy',
     'scikit-image',
-    'networkx'
+    'networkx',
+    'torch'
 ]
 
 [tool.setuptools.packages.find]

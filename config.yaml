@@ -1,0 +1,10 @@
+bg_thres: 300
+channel: 0
+chunk_size: 300
+splice: 300
+
+# roi: [0,0,0,128,128,128]
+roi: null
+
+input_path: 'test/data/test.tif'
+output_path: 'test/out/test.db'
