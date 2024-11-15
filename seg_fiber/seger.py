@@ -6,8 +6,6 @@ from skimage.measure import label, regionprops
 from tqdm import tqdm
 import os
 
-import torch
-
 from .utils.patch import patchify_without_splices, get_patch_rois
 from .utils.image_reader import wrap_image
 
@@ -172,7 +170,7 @@ class Seger():
 
 
 
-    def process_whole(self,image_path,channel=0,chunk_size=300,splice=100000,roi=None,dec=None):
+    def process_whole(self,image_path,channel=0,chunk_size=300,splice=300,roi=None,dec=None):
         '''
         cut whole brain image to [300,300,300] cubes without splices (z coordinates % 300 == 0)
         '''

@@ -23,13 +23,14 @@ dependencies = [
     'tqdm',
     'scipy',
     'scikit-image',
-    'networkx',
-    'torch'
+    'networkx'
 ]
 
 [tool.setuptools.packages.find]
 include = ["seg_fiber", "seg_fiber.*"]
 
+[options.extras_require]
+pytorch = ["torch"]
 
 [options.packages.find]
 where = "seg_fiber"

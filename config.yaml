@@ -1,10 +1,21 @@
+# background threshold
 bg_thres: 300
+# channel number, 0 means 488
 channel: 0
+# cube size accepted by the segmentation model
 chunk_size: 300
+# thickness of one brain slice
 splice: 300
 
+# ROI you wanna segment, 'null' means the entire volume to be processed
+# format: [x_start, y_start, z_start, x_size, y_size, z_size]
 # roi: [0,0,0,128,128,128]
 roi: null
 
-input_path: 'test/data/test.tif'
-output_path: 'test/out/test.db'
+# where your image data
+# input_path: 'test/data/test.tif'
+input_path: '/share/home/liuy/project/data/2-50w-ROI.ims'
+
+# where the database file is output
+# output_path: 'test/out/z002.db'
+output_path: 'test/out/out.db'

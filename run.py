@@ -4,18 +4,18 @@ import argparse
 
 import signal
 import subprocess
+import submitit
 
 import os, sys
-import shutil
-import submitit, random
+import random
 from pathlib import Path
+from pprint import pprint
 
 from seg_fiber import Seger
 from seg_fiber import segs2db
 
-from pprint import pprint
 
-# distributed
+# === distributed helper function ===
 def init_gpu(gpu, args):
     if args.slurm:
         job_env = submitit.JobEnvironment()
@@ -55,6 +55,7 @@ def check_dir(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
+# === worker ===
 def worker(gpu, args):
     pprint(vars(args))
 
@@ -73,7 +74,7 @@ class slurm_worker(object):
         init_node(self.args)
         worker(None, self.args)
 
-
+# === arg praser ===
 def parse_args(simulated_args=None):
     parser = argparse.ArgumentParser(description='Seger')
 
@@ -155,7 +156,7 @@ def parse_args(simulated_args=None):
 
     return args
 
-
+# === main ===
 def main(simulated_args=None):
     args = parse_args(simulated_args)
     args.port = random.randint(49152,65535)
