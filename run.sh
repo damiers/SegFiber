@@ -9,11 +9,6 @@ source ${CONDA_PATH}/etc/profile.d/conda.sh
 conda activate ${CONDA_ENV_NAME}
 
 # slurm partition
-SLURM_PARTITION="compute"
-# slurm node in the partition
-SLURM_NODE="c001"
-
-# slurm partition
 SLURM_PARTITION="tao"
 # slurm node in the partition
 SLURM_NODE="t000"

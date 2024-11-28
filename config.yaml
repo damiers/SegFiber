@@ -14,8 +14,8 @@ roi: null
 
 # where your image data
 # input_path: 'test/data/test.tif'
-input_path: '/share/home/liuy/project/data/2-50w-ROI.ims'
+input_path: '/share/home/liuy/project/data/VISoR_Unorganized/data/2-50w-ROI.ims'
 
-# where the database file is output
-# output_path: 'test/out/z002.db'
+# where the database file is output'
+# output_path: 'test/out/test.db'
 output_path: 'test/out/out.db'

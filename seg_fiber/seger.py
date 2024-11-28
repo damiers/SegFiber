@@ -3,6 +3,7 @@ import networkx as nx
 from scipy.spatial.distance import cdist
 from skimage.morphology import skeletonize
 from skimage.measure import label, regionprops
+from rtree import index
 from tqdm import tqdm
 import os
 
@@ -31,7 +32,7 @@ class Seger():
         return mask
     
 
-    def get_large_mask(self,img,dec=None):
+    def get_large_mask(self,img):
         '''
         process one large volume(D,W,H>100) with border (default 4), return mask
         '''
@@ -76,8 +77,6 @@ class Seger():
                     pad_widths[i] = (p1,p2+res)
 
             padded_block = np.pad(block, pad_widths, mode='reflect')
-            if dec is not None:
-                padded_block = dec.process_one(padded_block)
 
             mask = self.seg_net.get_mask(padded_block,thres=0.5)
             mask = mask.astype(np.uint8)
@@ -134,9 +133,9 @@ class Seger():
                 if len(list(graph.neighbors(node)))==3:
                     segments.append(
                         {
-                            'sid' : None,
+                            # 'sid' : None,
                             'points' : [[i+j for i,j in zip(points[bn],offset)]],
-                            'sampled_points' : [[i+j for i,j in zip(points[bn],offset)]]
+                            # 'sampled_points' : [[i+j for i,j in zip(points[bn],offset)]]
                         }
                     )
 
@@ -144,7 +143,6 @@ class Seger():
             graph.remove_nodes_from(branch_nodes)
 
             connected_components = list(nx.connected_components(graph))
-
             for nodes in connected_components:
                 if len(nodes)<=interval*2:
                     continue
@@ -157,20 +155,101 @@ class Seger():
                 seg_points = np.array([points[i].tolist() for i in path])
                 seg_points = seg_points + np.array(offset)
                 seg_points = seg_points.tolist()
-                sampled_points = seg_points[:-(interval-1):interval]
-                sampled_points.append(seg_points[-1])
+                # sampled_points = seg_points[:-(interval-1):interval]
+                # sampled_points.append(seg_points[-1])
                 segments.append(
                     {
-                        'sid' : None,
+                        # 'sid' : None,
                         'points' : seg_points,
-                        'sampled_points' : sampled_points
+                        # 'sampled_points' : sampled_points
                     }
                 )
         return skel, segments
 
 
+    def connection(self, segs):
+        p = index.Property(dimension=3)
+        rtree = index.Index(properties=p)
 
-    def process_whole(self,image_path,channel=0,chunk_size=300,splice=300,roi=None,dec=None):
+        G = nx.Graph()
+        nid_offset = 0
+        for seg in segs:
+            # points = seg['sampled_points']
+            points = seg['points']
+            if len(points)>=2:
+                # node
+                for idx, coord in enumerate(points):
+                    nid = idx + nid_offset
+                    G.add_node(nid, nid=nid, coord=coord)
+                    rtree.insert(nid, tuple(list(coord) + list(coord)), obj=[nid, coord])
+                # edge
+                for src, tgt in zip(range(0,len(points)-1), range(1,len(points))):
+                    src_nid = src + nid_offset
+                    tgt_nid = tgt + nid_offset
+                    G.add_edge(src_nid, tgt_nid)
+            else:
+                nid = 0 + nid_offset
+                G.add_node(nid, nid=nid, coord=points[0])
+            nid_offset += len(points)
+        
+        dist_threshold = 12
+        degree_threshold = 40
+        end_nodes = [node for node, degree in G.degree() if degree==1]
+        for end_nid in end_nodes:
+            if G.degree[end_nid]>1:
+                continue
+            curr_path = [end_nid] + [des for src, des in list(nx.dfs_edges(G, end_nid, depth_limit=5))]
+            curr_coords = np.asarray([G.nodes[nid]['coord'] for nid in curr_path])
+            offset = [i-dist_threshold//2 for i in curr_coords[0]]
+            roi = offset + [i+dist_threshold for i in offset]
+            curr_direction = np.sum(curr_coords[:-1] - curr_coords[1:], axis=0)
+            curr_direction = curr_direction / np.linalg.norm(curr_direction)
+
+            nbr_nid_list = set(rtree.intersection(tuple(roi), objects=False)) - set(curr_path)
+            nbr_nid_list = [nid for nid in nbr_nid_list if G.degree[nid]==1]
+            matched_nbr = None
+            min_degree = degree_threshold
+            for nbr_nid in nbr_nid_list:
+                nbr_path = [nbr_nid] + [des for src, des in list(nx.dfs_edges(G, nbr_nid, depth_limit=5))]
+                nbr_coords = np.asarray([G.nodes[nid]['coord'] for nid in nbr_path])
+                nbr_direction = np.sum(nbr_coords[1:] - nbr_coords[:-1], axis=0)
+                nbr_direction = nbr_direction / np.linalg.norm(nbr_direction)
+
+                norm = np.linalg.norm(curr_direction)*np.linalg.norm(nbr_direction)
+                degree = np.degrees(np.arccos(np.clip(np.dot(curr_direction, nbr_direction)/norm, -1.0, 1.0)))
+
+                if degree <= min_degree:
+                    min_degree = degree
+                    matched_nbr = nbr_nid
+            if matched_nbr is not None:
+                G.add_edge(end_nid, matched_nbr)
+
+        segments = []
+        connected_components = list(nx.connected_components(G))
+        interval = 3
+        for cc in connected_components:
+            if len(cc)<=interval*2:
+                continue
+            subgraph = G.subgraph(cc).copy()
+            end_nodes = [node for node, degree in subgraph.degree() if degree == 1]
+            if (len(end_nodes)!=2):
+                continue
+            path = nx.shortest_path(subgraph, source=end_nodes[0], target=end_nodes[1], weight=None, method='dijkstra') 
+            # path to segment
+            points = np.array([G.nodes[nid]['coord'] for nid in path]).tolist()
+            sampled_points = points[:-(interval-1):interval]
+            sampled_points.append(points[-1])
+            segments.append(
+                {
+                    'sid' : None,
+                    'points' : points,
+                    'sampled_points' : sampled_points
+                }
+            )
+        return segments
+
+
+    def process_whole(self,image_path,channel=0,chunk_size=300,splice=300,roi=None):
         '''
         cut whole brain image to [300,300,300] cubes without splices (z coordinates % 300 == 0)
         '''
@@ -180,6 +259,7 @@ class Seger():
         else:
             image_roi = roi
         rois = patchify_without_splices(image_roi,chunk_size,splices=splice)
+
         # pad rois
         segs = []
         for roi in tqdm(rois):
@@ -188,8 +268,6 @@ class Seger():
                     img = image.from_roi(roi,padding='reflect')
                 else:
                     img = image.from_roi(roi,0,channel,padding='reflect') 
-                if dec is not None:
-                    img = dec.process_one(img)
                 mask = self.seg_net.get_mask(img)
                 offset = roi[:3]
             else:
@@ -199,11 +277,12 @@ class Seger():
                     padded_block = image.from_roi(roi,padding='reflect')
                 else:
                     padded_block = image.from_roi(roi,0,channel,padding='reflect') 
-                mask = self.get_large_mask(padded_block,dec)
+                mask = self.get_large_mask(padded_block)
                 offset=[i+self.bw for i in roi[:3]]
             _, segs_in_block = self.mask_to_segs(mask,offset=offset)
             segs+=segs_in_block
 
+        segs = self.connection(segs)
         for i, seg in enumerate(segs):
             seg['sid'] = i
 
