@@ -15,9 +15,8 @@ class Ims():
         self.rois = []
         self.info = self.get_info()
         for i in self.info:
-            self.rois.append(i['origin'] + i['data_shape'])
-        self.roi = self.rois[0]
-
+            self.rois.append([int(j/k) for j,k in zip(i['origin'],i['spacing'])] + i['image_size'])
+        self.extension = self.info[0]['origin'] + self.info[0]['dims_physical']
         self.dataset = self.hdf.get('DataSet')
         self.time_point_key = 'TimePoint 0'
         self.resolution_levels = list(self.dataset.keys())
@@ -70,7 +69,7 @@ class Ims():
 
         x_slice = slice(x_min-self.rois[level][0]+xlp,x_max-self.rois[level][0]-xhp)
         y_slice = slice(y_min-self.rois[level][1]+ylp,y_max-self.rois[level][1]-yhp)
-        z_slice = slice(z_min-self.rois[level][2]+zlp,z_max-self.rois[level][2]-zhp) 
+        z_slice = slice(z_min-self.rois[level][2]+zlp,z_max-self.rois[level][2]-zhp)
         if isinstance(level, int) and isinstance(channel, int):
             image = self.dataset[self.resolution_levels[level]][self.time_point_key][self.channels[channel]]['Data']
         else:
@@ -113,7 +112,7 @@ class Ims():
                     'dims_physical':dims_physical,
                     'image_size':dims_data,
                     'data_shape':[data.shape[2],data.shape[1],data.shape[0]],
-                    'data_chunks':data.chunks,
+                    'data_chunks':[data.chunks[2],data.chunks[1],data.chunks[0]],
                     'spacing':spacing,
                     'origin':origin
                 }
@@ -238,7 +237,7 @@ class ZipZarr():
                     'dims_physical':dims_physical,
                     'image_size':dims_data,
                     'data_shape':[data.shape[2],data.shape[1],data.shape[0]],
-                    'data_chunks':data.chunks,
+                    'data_chunks':[data.chunks[2],data.chunks[1],data.chunks[0]],
                     'spacing':spacing,
                     'origin':origin
                 }
@@ -255,6 +254,7 @@ class Tiff():
     def __init__(self,tiff_path):
         self.image = np.squeeze(imread(tiff_path))
         self.roi = [0,0,0] + list(self.image.shape)
+        self.rois = [self.roi]
         self.shape = self.roi[3:6]
     
     def __getitem__(self, indices):
@@ -306,9 +306,4 @@ def wrap_image(image_path):
 
 
 if __name__ == '__main__':
-    file_path = '/Users/bean/workspace/data/test.ims'
-    file = Ims(file_path)
-    img = file.from_roi([0,0,0,100,100,100],0,3)
-    print(file.resolution_levels)
-    print(file.channels)
-    print(img.shape)
+    pass

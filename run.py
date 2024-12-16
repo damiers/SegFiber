@@ -64,8 +64,9 @@ def worker(gpu, args):
     
     # === PROCESS === #
     seger = Seger(ckpt_path=None, bg_thres=args.bg_thres, cuda_device_id=args.gpu)
-    segs = seger.process_whole(args.input_path, args.channel, chunk_size=args.chunk_size, splice=args.splice, roi=args.roi)
+    segs = seger.process_whole(args.input_path, args.level, args.channel, chunk_size=args.chunk_size, splice=args.splice, roi=args.roi)
     segs2db(segs, args.output_path)
+    seger.connect_segs(args.output_path)
 
 class slurm_worker(object):
     def __init__(self, args):
@@ -192,6 +193,6 @@ def main(simulated_args=None):
 	
 if __name__ == '__main__':
     # for test
-    # simulated_args = ['-cfg', 'config.yaml', '-gpu', '0']
-    simulated_args = None
+    simulated_args = ['-cfg', 'config.yaml', '-gpu', '0']
+    # simulated_args = None
     main(simulated_args)
