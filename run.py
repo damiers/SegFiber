@@ -193,6 +193,6 @@ def main(simulated_args=None):
 	
 if __name__ == '__main__':
     # for test
-    simulated_args = ['-cfg', 'config.yaml', '-gpu', '0']
-    # simulated_args = None
+    # simulated_args = ['-cfg', 'config.yaml', '-gpu', '0']
+    simulated_args = None
     main(simulated_args)
