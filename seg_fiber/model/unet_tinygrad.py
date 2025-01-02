@@ -50,7 +50,6 @@ class UNet3D:
 
         self.final_conv = [nn.Conv2d(filters[0], n_class, kernel_size=(1, 1, 1))]
 
-
     def __call__(self, x):
         skip_connections = []
         for i, down in enumerate(self.downs):
@@ -67,7 +66,6 @@ class UNet3D:
             x = self.ups[i+1](x)
         x = self.final_conv[0](x)
         return x.sigmoid()
-
 
     def load_from_pretrained(self,ckpt_path):
         # state_dict = torch.load(ckpt_path,map_location='cpu', weights_only=False)

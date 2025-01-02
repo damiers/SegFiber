@@ -24,6 +24,8 @@
    ```yaml
    # background threshold
    bg_thres: 300
+   # resolution level
+   level: 2
    # channel number, 0 means 488
    channel: 0
    # cube size accepted by the segmentation model
