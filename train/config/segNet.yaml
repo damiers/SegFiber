@@ -1,0 +1,37 @@
+# task name
+model: SegFiber
+
+# model
+arch: 'unet'
+dataset: 'skelDataset'
+loss: 'clDiceLoss'
+optimizer: 'adam'
+
+in_channels: 1
+out_channels: 1
+features: [32, 64, 128]
+norm_type: 'batch'
+
+# data
+data: '/path/of/data'
+patch_size: 64
+overlap: 16
+
+# learning rate
+lr_start: 5e-4
+lr_end: 1e-6
+lr_warmup: 5
+
+# training
+epoch: 100
+save_every: 5
+batch_per_gpu: 8
+
+# single workstation
+gpus: 0
+
+# cluster
+slurm_ngpus: 2
+slurm_nnodes: 1
+slurm_nodelist: 'c003'
+slurm_partition: 'compute'

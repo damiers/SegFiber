@@ -3,7 +3,6 @@ import functools
 import torch
 import numpy as np
 
-
 def get_norm_layer(norm_type='instance', dim=2):
     if dim == 2:
         BatchNorm = nn.BatchNorm2d
@@ -24,7 +23,6 @@ def get_norm_layer(norm_type='instance', dim=2):
     else:
         raise NotImplementedError('normalization layer [%s] is not found' % norm_type)
     return norm_layer
-
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels, *, norm_type='batch', dim=2):
@@ -53,9 +51,8 @@ class DoubleConv(nn.Module):
         x = self.conv(x)
         return x
 
-
 class UNet(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1, features=[64, 128, 256, 512], *, norm_type='batch', dim=2):
+    def __init__(self, in_channels=1, out_channels=1, features=[32, 64, 128], *, norm_type='batch', dim=3):
         super(UNet, self).__init__()
         self.downs = nn.ModuleList()
         self.ups = nn.ModuleList()
@@ -109,9 +106,8 @@ class UNet(nn.Module):
         x = self.final_conv(x)
         return x
 
-
 class SegNet():
-    def __init__(self,ckpt_path,bg_thres=150):
+    def __init__(self, ckpt_path, bg_thres=150):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if 'tiny' in ckpt_path:
             model_dims = [32,64,128]
@@ -131,7 +127,6 @@ class SegNet():
         self.model = model
         self.bg_thres = bg_thres
 
-    
     def preprocess(self,img,percentiles=[0.1,1.0]):
         # input img: ndarray [0,65535]
         # output img: tensor [0,1]
@@ -151,19 +146,15 @@ class SegNet():
         img = img.unsqueeze(0).unsqueeze(0)
         return img
 
-
-    def get_mask(self,img,thres=0.5):
+    def get_mask(self, img, thres=0.5):
         img_in = self.preprocess(img)
         if img_in != None:
             with torch.no_grad():
                 tensor_out = self.model(img_in.to(self.device)).cpu()
             prob = tensor_out.squeeze(0).squeeze(0)
-            if thres==None:
-                return prob.detach().numpy()
-            else:
+            if thres is not None:
                 prob[prob>=thres]=1
                 prob[prob<thres]=0
-                return prob.detach().numpy()
+            return prob.detach().numpy()
         else:
             return np.zeros_like(img)
-        

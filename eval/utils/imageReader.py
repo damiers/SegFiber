@@ -4,14 +4,58 @@ import zarr
 import re
 from tifffile import imread
 
+class Tiff():
+    def __init__(self, image_path):
+        self.image = np.squeeze(imread(image_path))
+        self.roi = [0,0,0] + list(self.image.shape)
+        self.rois = [self.roi]
+        self.shape = self.roi[3:6]
+    
+    def __getitem__(self, indices):
+        coords = [int(coord) for coord in coords]
+        x_min, x_max = indices[0].start, indices[0].stop
+        y_min, y_max = indices[1].start, indices[1].stop
+        z_min, z_max = indices[2].start, indices[2].stop
+        x_slice = slice(x_min-self.roi[0],x_max-self.roi[0])
+        y_slice = slice(y_min-self.roi[1],y_max-self.roi[1])
+        z_slice = slice(z_min-self.roi[2],z_max-self.roi[2])
+        return self.image[x_slice,y_slice,z_slice]
+
+    def from_roi(self, coords, padding='constant', level=0, channel=0):
+        # coords: [x_offset,y_offset,z_offset,x_size,y_size,z_size]
+        coords = [int(coord) for coord in coords]
+        x_min, x_max = coords[0], coords[3]+coords[0]
+        y_min, y_max = coords[1], coords[4]+coords[1]
+        z_min, z_max = coords[2], coords[5]+coords[2]
+
+        # add padding
+        [xlb, ylb, zlb] = self.roi[0:3] 
+        [xhb, yhb, zhb] = [i+j for i,j in zip(self.roi[:3], self.roi[3:])]
+
+        xlp = max(xlb-x_min, 0)
+        xhp = max(x_max-xhb, 0)
+        ylp = max(ylb-y_min, 0)
+        yhp = max(y_max-yhb, 0)
+        zlp = max(zlb-z_min, 0)
+        zhp = max(z_max-zhb, 0)
+
+        x_slice = slice(x_min-self.roi[0]+xlp, x_max-self.roi[0]-xhp)
+        y_slice = slice(y_min-self.roi[1]+ylp, y_max-self.roi[1]-yhp)
+        z_slice = slice(z_min-self.roi[2]+zlp, z_max-self.roi[2]-zhp) 
+        img = self.image[x_slice,y_slice,z_slice]
+
+        padded = np.pad(img, ((xlp, xhp), (ylp, yhp), (zlp, zhp)), padding) # padding can be constant or reflect
+
+        return padded
+
 
 class Ims():
     '''
     ims image: [z,y,x]
     input roi and returned image: [x,y,z]
     '''
-    def __init__(self,ims_path):
-        self.hdf = h5py.File(ims_path,'r')
+    def __init__(self, image_path):
+        self.hdf = h5py.File(image_path, 'r')
         self.rois = []
         self.info = self.get_info()
         for i in self.info:
@@ -21,7 +65,6 @@ class Ims():
         self.time_point_key = 'TimePoint 0'
         self.resolution_levels = list(self.dataset.keys())
         self.channels = self.list_channels(self.resolution_levels[0])
-
 
     def list_channels(self, resolution_level):
         res_level = self.dataset.get(resolution_level)
@@ -34,7 +77,6 @@ class Ims():
         
         return list(time_point_group.keys())
 
-
     def __getitem__(self, indices, level=0, channel=0):
         x_min, x_max = indices[0].start, indices[0].stop
         y_min, y_max = indices[1].start, indices[1].stop
@@ -45,8 +87,7 @@ class Ims():
         image = self.dataset[self.resolution_levels[level]][self.time_point_key][self.channels[channel]]['Data']
         return np.transpose(image[z_slice,y_slice,x_slice],(2,1,0))
 
-
-    def from_roi(self, coords, level=0, channel=0, padding='constant'):
+    def from_roi(self, coords, padding='constant', level=0, channel=0):
         # coords: [x_offset,y_offset,z_offset,x_size,y_size,z_size]
         if isinstance(level,str):
             level = self.resolution_levels.index(level)
@@ -77,7 +118,6 @@ class Ims():
         img = np.transpose(image[z_slice,y_slice,x_slice],(2,1,0))
         padded = np.pad(img, ((xlp, xhp), (ylp, yhp), (zlp, zhp)), padding)
         return padded
-    
 
     def get_info(self):
         if 'DataSetInfo' in self.hdf.keys():
@@ -120,7 +160,6 @@ class Ims():
         return info
 
 
-
 class ZipZarr():
     '''
     Load hierachical image data of several resolution levels like:
@@ -130,7 +169,7 @@ class ZipZarr():
         ├── 8um uint16
         └── 16um uint16
     '''
-    def __init__(self,image_path):
+    def __init__(self, image_path):
         self.store = zarr.open(image_path,mode='r')
         if 'nm' in list(self.store.keys())[0]:
             self.store = self.store['488nm_10X']
@@ -167,7 +206,6 @@ class ZipZarr():
             )
             self.rois.append([0,0,0]+list(image.shape))
 
-
     def __getitem__(self, indices, level=0):
         x_min, x_max = indices[0].start, indices[0].stop
         y_min, y_max = indices[1].start, indices[1].stop
@@ -177,8 +215,7 @@ class ZipZarr():
         z_slice = slice(z_min-self.rois[level][2],z_max-self.rois[level][2])
         return np.transpose(self.images[level][z_slice,y_slice,x_slice],(2,1,0))
 
-
-    def from_roi(self, coords, level=0, channel=0,padding='constant'):
+    def from_roi(self, coords, level=0, channel=0, padding='constant'):
         # coords: [x_offset,y_offset,z_offset,x_size,y_size,z_size]
         coords = [int(coord) for coord in coords]
         x_min, x_max = coords[0], coords[3]+coords[0]
@@ -202,7 +239,6 @@ class ZipZarr():
         padded = np.pad(img, ((xlp, xhp), (ylp, yhp), (zlp, zhp)), padding)
 
         return padded
-
 
     def get_info(self):
         if 'DataSetInfo' in self.hdf.keys():
@@ -244,57 +280,7 @@ class ZipZarr():
             )
         return info
 
-
-
-class Tiff():
-    '''
-    zarr.attrs['roi'] = [x_offset,y_offset,z_offset,x_size,y_size,z_size]
-    To load image directly from global coordinates, wrap .zarr object in this class.
-    '''
-    def __init__(self,tiff_path):
-        self.image = np.squeeze(imread(tiff_path))
-        self.roi = [0,0,0] + list(self.image.shape)
-        self.rois = [self.roi]
-        self.shape = self.roi[3:6]
-    
-    def __getitem__(self, indices):
-        coords = [int(coord) for coord in coords]
-        x_min, x_max = indices[0].start, indices[0].stop
-        y_min, y_max = indices[1].start, indices[1].stop
-        z_min, z_max = indices[2].start, indices[2].stop
-        x_slice = slice(x_min-self.roi[0],x_max-self.roi[0])
-        y_slice = slice(y_min-self.roi[1],y_max-self.roi[1])
-        z_slice = slice(z_min-self.roi[2],z_max-self.roi[2])
-        return self.image[x_slice,y_slice,z_slice]
-
-    def from_roi(self, coords, level=0, channel=0, padding='constant'):
-        # coords: [x_offset,y_offset,z_offset,x_size,y_size,z_size]
-        coords = [int(coord) for coord in coords]
-        x_min, x_max = coords[0], coords[3]+coords[0]
-        y_min, y_max = coords[1], coords[4]+coords[1]
-        z_min, z_max = coords[2], coords[5]+coords[2]
-        # add padding
-        [xlb,ylb,zlb] = self.roi[0:3] 
-        [xhb,yhb,zhb] = [i+j for i,j in zip(self.roi[:3],self.roi[3:])]
-
-        xlp = max(xlb-x_min,0)
-        xhp = max(x_max-xhb,0)
-        ylp = max(ylb-y_min,0)
-        yhp = max(y_max-yhb,0)
-        zlp = max(zlb-z_min,0)
-        zhp = max(z_max-zhb,0)
-
-        x_slice = slice(x_min-self.roi[0]+xlp,x_max-self.roi[0]-xhp)
-        y_slice = slice(y_min-self.roi[1]+ylp,y_max-self.roi[1]-yhp)
-        z_slice = slice(z_min-self.roi[2]+zlp,z_max-self.roi[2]-zhp) 
-        img = self.image[x_slice,y_slice,z_slice]
-
-        padded = np.pad(img, ((xlp, xhp), (ylp, yhp), (zlp, zhp)), padding) # padding can be constant or reflect
-
-        return padded
-
-
-def wrap_image(image_path):
+def ImageReader(image_path):
     if 'ims' in image_path:
         return Ims(image_path)
     elif 'zarr.zip' in image_path:

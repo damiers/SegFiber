@@ -21,7 +21,6 @@ class BatchNorm3d:
         bn_init = (x - self.running_mean.reshape(1, -1, 1, 1, 1).expand(x.shape)) * batch_invstd
         return self.weight.reshape(1, -1, 1, 1, 1).expand(x.shape) * bn_init + self.bias.reshape(1, -1, 1, 1, 1).expand(x.shape)
 
-
 class DownsampleBlock:
     def __init__(self, c0, c1, stride=1):
         self.conv = [nn.Conv2d(c0, c1, kernel_size=(3,3,3), stride=stride, padding=(1,1,1,1,1,1), bias=False), BatchNorm3d(c1), Tensor.relu, nn.Conv2d(c1, c1, kernel_size=(3,3,3), padding=(1,1,1,1,1,1), bias=False), BatchNorm3d(c1), Tensor.relu]
@@ -36,9 +35,8 @@ class UpsampleBlock:
     def __call__(self, x):
         return x.sequential(self.conv)
 
-
 class UNet3D:
-    def __init__(self, in_channels=1,filters=[32,64,128], n_class=1):
+    def __init__(self, in_channels=1, filters=[32,64,128], n_class=1):
         self.downs = []
         self.ups = []
         for feature in filters:
@@ -77,7 +75,6 @@ class UNet3D:
                 obj.assign(v.numpy())
             else:
                 pass
-
 
 class SegNet():
     def __init__(self,ckpt_path:str,bg_thres=150):
@@ -122,7 +119,6 @@ class SegNet():
         img = img.reshape(1,1,d,w,h)
         return img
 
-
     def get_mask(self,img,thres=0.5):
         d,w,h = img.shape
         img_in = self.preprocess(img)
@@ -138,7 +134,6 @@ class SegNet():
                 return prob
         else:
             return np.zeros_like(img)
-
 
 if __name__ == '__main__':
     import os
