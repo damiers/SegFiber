@@ -6,10 +6,8 @@ from skimage.measure import label, regionprops
 from tqdm import tqdm
 import os
 
-from eval.utils.patch import patchify_without_splices, get_patch_rois
+from eval.utils.patch import get_patch_rois
 from eval.model import SegNet, DEFAULT_CKPT_PATH
-from eval.utils.imageReader import ImageReader
-from eval.utils.sqliteDBIO import sqliteDBIO
 
 class Seger():
     def __init__(self, ckpt_path=None, bg_thres=200, cuda_device_id:int=0):
@@ -20,7 +18,7 @@ class Seger():
             ckpt_path = DEFAULT_CKPT_PATH
         self.seg_net = SegNet(ckpt_path, bg_thres)        
         # border width
-        self.bw = 4
+        self.border_width = 4
 
     def postprocess(self,mask,min_size=50):
         labeled_mask, _ = label(mask,return_num=True)
@@ -30,37 +28,36 @@ class Seger():
             mask[labeled_mask == region] = 0
         return mask
     
-
     def get_large_mask(self, img):
         '''
         process one large volume(D,W,H>100) with border (default 4), return mask
         '''
         block_size = 128
-        border_size = self.bw
+        border_size = self.border_width
         bordered_size = img.shape
         actual_size = [i-border_size*2 for i in bordered_size]
-        block_rois = get_patch_rois([border_size,border_size,border_size]+actual_size,block_size)
+        block_rois = get_patch_rois([border_size, border_size, border_size] + actual_size, block_size)
         large_mask = np.zeros(img.shape,dtype=np.uint8)
         print(f'blocksize: {len(block_rois)}')
         for roi in block_rois:
-            tg_size = self.bw
+            tg_size = self.border_width
             # add border if possible
             x1,x2,y1,y2,z1,z2 = roi[0],roi[0]+roi[3],roi[1],roi[1]+roi[4],roi[2],roi[2]+roi[5]
-            x1 = max(0,x1-tg_size)
-            y1 = max(0,y1-tg_size)
-            z1 = max(0,z1-tg_size)
-            x2 = min(img.shape[0],x2+tg_size)
-            y2 = min(img.shape[1],y2+tg_size)
-            z2 = min(img.shape[2],z2+tg_size)
+            x1 = max(0, x1-tg_size)
+            y1 = max(0, y1-tg_size)
+            z1 = max(0, z1-tg_size)
+            x2 = min(img.shape[0], x2+tg_size)
+            y2 = min(img.shape[1], y2+tg_size)
+            z2 = min(img.shape[2], z2+tg_size)
 
-            block = img[x1:x2,y1:y2,z1:z2]
+            block = img[x1:x2, y1:y2, z1:z2]
 
-            x1_pad = roi[0]-x1
-            y1_pad = roi[1]-y1
-            z1_pad = roi[2]-z1
-            x2_pad = x2-roi[0]-roi[3]
-            y2_pad = y2-roi[1]-roi[4]
-            z2_pad = z2-roi[2]-roi[5]
+            x1_pad = roi[0] - x1
+            y1_pad = roi[1] - y1
+            z1_pad = roi[2] - z1
+            x2_pad = x2-roi[0] - roi[3]
+            y2_pad = y2-roi[1] - roi[4]
+            z2_pad = z2-roi[2] - roi[5]
 
             pad_widths = [
                 (tg_size-x1_pad, tg_size-x2_pad),
@@ -74,18 +71,17 @@ class Seger():
                 res = block_size+tg_size*2 - (block.shape[i]+p1+p2)
                 ap.append(res)
                 if res!=0:
-                    pad_widths[i] = (p1,p2+res)
+                    pad_widths[i] = (p1, p2+res)
 
             padded_block = np.pad(block, pad_widths, mode='reflect')
-            print(f'padded_block shape: {padded_block.shape}')
+            # print(f'padded_block shape: {padded_block.shape}')
 
-            mask = self.seg_net.get_mask(padded_block,thres=0.5)
+            mask = self.seg_net.get_mask(padded_block, thres=0.5)
             mask = mask.astype(np.uint8)
-            mask = mask[tg_size:-tg_size-ap[0],tg_size:-tg_size-ap[1],tg_size:-tg_size-ap[2]]
-            large_mask[roi[0]:roi[0]+roi[3],roi[1]:roi[1]+roi[4],roi[2]:roi[2]+roi[5]] = mask
+            mask = mask[tg_size:-tg_size-ap[0], tg_size:-tg_size-ap[1], tg_size:-tg_size-ap[2]]
+            large_mask[roi[0]:roi[0]+roi[3], roi[1]:roi[1]+roi[4], roi[2]:roi[2]+roi[5]] = mask
         processed_mask = self.postprocess(large_mask)
-        return processed_mask[border_size:-border_size,border_size:-border_size,border_size:-border_size]
-
+        return processed_mask[border_size:-border_size, border_size:-border_size, border_size:-border_size]
 
     def mask_to_segs(self, mask, offset=[0,0,0]):
         '''
@@ -96,7 +92,6 @@ class Seger():
             sampled_points: points[::interval]
         }
         '''
-
         interval = 3
 
         x_border = 1
@@ -164,33 +159,11 @@ class Seger():
                     }
                 )
         return skel, segments
-
-    def process_whole(self, image_path, db_path, level=0, channel=0, chunk_size=300, splice=300, roi=None):
-        '''
-        cut whole brain image to [300,300,300] cubes without splices (z coordinates % 300 == 0)
-        '''
-        image = ImageReader(image_path)
-        db = sqliteDBIO(db_path)
-
-        if roi==None:
-            image_roi = image.rois[level]
+    
+    def process(self, img_patch, offset, re_batch):
+        if not re_batch:
+            mask = self.seg_net.get_mask(img_patch)
         else:
-            image_roi = roi
-        rois = patchify_without_splices(image_roi,chunk_size,splices=splice)
-        
-        # pad rois
-        _, seg_version = db.get_max_sid_version()
-        for roi in tqdm(rois):
-            if (np.array(roi[3:])<=np.array([128,128,128])).all():
-                img = image.from_roi(roi, padding='reflect', level=level, channel=channel) 
-                mask = self.seg_net.get_mask(img)
-                offset = roi[:3]
-            else:
-                roi[:3] = [i-self.bw for i in roi[:3]]
-                roi[3:] = [i+self.bw*2 for i in roi[3:]]
-                padded_block = image.from_roi(roi, padding='reflect', level=level, channel=channel) 
-                mask = self.get_large_mask(padded_block)
-                offset=[i+self.bw for i in roi[:3]]
-            _, segs_in_block = self.mask_to_segs(mask, offset=offset)
-
-            db.segs2db(segs_in_block, version=seg_version)
+            mask = self.get_large_mask(img_patch)
+        _, segs = self.mask_to_segs(mask, offset=offset)
+        return segs

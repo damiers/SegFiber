@@ -12,16 +12,19 @@
 SLURM_PARTITION="tao"
 # slurm node in the partition
 SLURM_NODE="t000"
+# gpus per node
+SLURM_NGPUS=2
 
 # Set PYTHONPATH to the project root
 export PYTHONPATH=$(pwd)
 
 # you can specify a task name
 # '-reset' means if the file in "output_path" (specified in config.yaml) already exits, it will be overwrote. you can delete it if you wish.
-python eval/run.py  -task seg_fiber \
+python eval/eval.py -task seg_fiber \
                     -gpu 0 \
                     -cfg eval/config/config.yaml \
                     -slurm \
                     -slurm_nodelist ${SLURM_NODE} \
                     -slurm_partition ${SLURM_PARTITION} \
+                    -slurm_ngpus 2 \
                     -reset

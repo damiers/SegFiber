@@ -1,16 +1,20 @@
 from torch.utils.data import Dataset
 import torch
-import os
-
 import numpy as np
 
-from neurofly import image_reader
+if __name__ == '__main__':
+    import sys, os
+    sys.path.append(os.getcwd())
+from eval.utils.imageReader import ImageReader
 
 class parallelDataset(Dataset):
-    def __init__(self, image_path:str, patch_size:int, slice_thickness:int, level:int=0, channel:int=0):
+    def __init__(self, image_path:str, patch_size:int, slice_thickness:int, level:int=0, channel:int=0, roi:list=None):
         super().__init__()
-        self.IMAGE = image_reader(image_path)
-        self.img_roi = self.IMAGE.rois[level]
+        self.IMAGE = ImageReader(image_path)
+        if roi is not None:
+            self.img_roi = roi
+        else:
+            self.img_roi = self.IMAGE.rois[level]
 
         self.patch_size = patch_size
         self.slice_thickness = slice_thickness
@@ -52,14 +56,19 @@ class parallelDataset(Dataset):
         if (roi[3:] <= np.asarray([128, 128, 128])).all():
             img_patch = self.IMAGE.from_roi(roi, padding='reflect', level=self.level, channel=self.channel)
             re_batch = torch.tensor(False)
+            re_batch = False
+            offset = roi[:3]
         else:
             roi[:3] = [i-self.border_width for i in roi[:3]]
             roi[3:] = [i+2*self.border_width for i in roi[3:]]
             img_patch = self.IMAGE.from_roi(roi, padding='reflect', level=self.level, channel=self.channel)
             re_batch = torch.tensor(True)
-        img_patch = torch.from_numpy(img_patch).to(torch.float32)
-        roi = torch.from_numpy(roi).to(torch.uint32)
-        return img_patch, roi, re_batch
+            re_batch = True
+            offset=[i+self.border_width for i in roi[:3]]
+        img_patch = img_patch.astype(np.float32)
+        # img_patch = torch.from_numpy(img_patch).to(torch.float32)
+        # offset = torch.from_numpy(np.asarray(offset)).to(torch.float32)
+        return img_patch, offset, re_batch
         
 if __name__ == '__main__':
     img_path = 'test/data/test.tif'
@@ -67,10 +76,22 @@ if __name__ == '__main__':
     print(len(ds))
     from torch.utils.data.distributed import DistributedSampler
     from torch.utils.data import DataLoader
+    def custom_collate(batch):
+        # batch是一个列表，每个元素是__getitem__的返回值
+        # img_patches = [item[0] for item in batch]
+        # offsets = [item[1] for item in batch]
+        # re_batches = [item[2] for item in batch]
+        img_patches = batch[0][0]
+        offsets = batch[0][1]
+        re_batches = batch[0][2]
+        return img_patches, offsets, re_batches
+    
     loader = DataLoader(
         dataset=ds, 
         batch_size=1, 
         num_workers=2,
+        collate_fn=custom_collate,
     )
-    for i, (img_patch, roi, re_batch) in enumerate(loader):
-        print(i, img_patch.shape, roi.shape, re_batch.dtype)
+    for i, (img_patch, offset, re_batch) in enumerate(loader):
+        # print(i, img_patch.shape, offset.cpu().numpy().astype(int).tolist()[0], re_batch.dtype)
+        print(i, img_patch.shape, offset, re_batch)

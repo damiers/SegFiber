@@ -20,9 +20,10 @@ from torch.utils.data.distributed import DistributedSampler
 import torch.distributed as dist
 
 import argparse
-from utils.distributed import init_dist_node, init_dist_gpu
+from eval.utils.distributed import init_dist_node, init_dist_gpu
 from eval.dataset.parallelDataset import parallelDataset
-from eval.segerParallel import Seger
+from eval.utils.sqliteDBIO import sqliteDBIO
+from eval.seger import Seger
 
 import submitit, random, sys
 import os
@@ -37,12 +38,6 @@ def check_dir(path):
 def parse_args():
     parser = argparse.ArgumentParser(description='Seger')
 
-    # === PATHS === #
-    parser.add_argument('-data', type=str, default="data",
-                                            help='path to dataset directory')
-    parser.add_argument('-out', type=str, default="out",
-                                            help='path to out directory')
-
     # === GENERAL === #
     parser.add_argument('-task', type=str, default="SegFiber",
                                             help='task name')
@@ -52,7 +47,6 @@ def parse_args():
                                             help='GPUs list, only works if not on slurm')
     parser.add_argument('-cfg', type =str,
                                             help='Configuration file')
-
 
     # === PATHS === #
     parser.add_argument('-input_path', type=str, default="data",
@@ -75,20 +69,12 @@ def parse_args():
     parser.add_argument('-roi', type=int, nargs='+', default=None,
                                             help='roi')
 
-    # === Architecture === #
-    parser.add_argument('-arch', type=str, default = 'mlp',
-                                            help='Architecture to choose')
-
-    # === Loss === #
-    parser.add_argument('-loss', type=str, default = 'loss',
-                                            help='Loss function to choose')
-
     # === SLURM === #
     parser.add_argument('-slurm', action='store_true', default=False,
                                             help='Submit with slurm')
-    parser.add_argument('-slurm_ngpus', type=int, default = 8,
+    parser.add_argument('-slurm_ngpus', type=int, default = 2,
                                             help='num of gpus per node')
-    parser.add_argument('-slurm_nnodes', type=int, default = 2,
+    parser.add_argument('-slurm_nnodes', type=int, default = 1,
                                             help='number of nodes')
     parser.add_argument('-slurm_nodelist', default = None,
                                             help='slurm nodeslist. i.e. "GPU17,GPU18"')
@@ -131,16 +117,6 @@ def parse_args():
 
     return args
 
-
-class SLURM_Trainer(object):
-    def __init__(self, args):
-        self.args = args
-
-    def __call__(self):
-        init_dist_node(self.args)
-        train(None, self.args)
-
-
 def main():
     args = parse_args()
     args.port = random.randint(49152,65535)
@@ -172,7 +148,7 @@ def main():
 
     else:
         init_dist_node(args)
-        mp.spawn(train, args = (args,), nprocs = args.ngpus_per_node)
+        mp.spawn(WORKER, args = (args,), nprocs = args.ngpus_per_node)
 	
 
 # === worker ===
@@ -183,23 +159,47 @@ def WORKER(gpu, args):
     init_dist_gpu(gpu, args)
 
     # === DATA === #
-    dataset = parallelDataset(args.data, args.patch_size, args.slice_thickness, args.level, args.channel)
+    dataset = parallelDataset(
+        args.input_path, 
+        patch_size=args.patch_size, 
+        slice_thickness=args.slice_thickness, 
+        level=args.level, 
+        channel=args.channel, 
+        roi=args.roi
+    )
 
-    sampler = DistributedSampler(dataset, shuffle=args.shuffle, num_replicas=args.world_size, rank=args.rank, seed=31)
+    sampler = DistributedSampler(dataset, shuffle=False, num_replicas=args.world_size, rank=args.rank, seed=31, drop_last=False)
+    def custom_collate(batch):
+        img_patch = batch[0][0]
+        offset = batch[0][1]
+        re_batch = batch[0][2]
+        return img_patch, offset, re_batch
     dataloader = DataLoader(
         dataset=dataset, 
         sampler=sampler,
         batch_size=1, 
         num_workers=2,
+        pin_memory=True,
+        drop_last=False,
+        collate_fn=custom_collate
     )
-    
-
-
-    # === PROCESS === #
     seger = Seger(ckpt_path=None, bg_thres=args.bg_thres, cuda_device_id=args.gpu)
-    segs = seger.process_whole(args.input_path, args.level, args.channel, chunk_size=args.chunk_size, splice=args.splice, roi=args.roi)
-    # segs2db(segs, args.output_path)
-    seger.connect_segs(args.output_path)
+    dbio = sqliteDBIO(args.output_path)
+    _, seg_version = dbio.get_max_sid_version()
+
+    with torch.no_grad():
+        for img_patch, offset, re_batch in dataloader:
+            # img_patch = img_patch.cuda(args.gpu)
+            # offset = offset.cpu().numpy().astype(int).tolist()[0]
+            segs = seger.process(img_patch, offset, re_batch)
+
+            gathered_results = [None for _ in range(args.world_size)]
+            dist.all_gather_object(gathered_results, segs)
+            if args.rank == 0:
+                for segs in gathered_results:
+                    if segs is not None:
+                            dbio.segs2db(segs, version=seg_version)
+    dist.destroy_process_group()
 
 class WORKER_SLURM(object):
     def __init__(self, args):
@@ -207,41 +207,6 @@ class WORKER_SLURM(object):
     def __call__(self):
         init_dist_node(self.args)
         WORKER(None, self.args)
-
-def train(gpu, args):
-    # === SET ENV === #
-    init_dist_gpu(gpu, args)
-    
-    # === DATA === #
-    dataset = parallelDataset(args.data, args.patch_size, args.slice_thickness, args.level, args.channel)
-
-    sampler = DistributedSampler(dataset, shuffle=args.shuffle, num_replicas = args.world_size, rank = args.rank, seed = 31)
-    loader = DataLoader(
-        dataset=dataset, 
-        sampler=sampler,
-        batch_size=1, 
-        num_workers=2,
-    )
-    print(f"Data loaded")
-
-    # === MODEL === #
-    get_model = getattr(__import__("train.arch.{}".format(args.arch), fromlist=["get_model"]), "get_model")
-    model = get_model(args).cuda(args.gpu)
-    model = nn.SyncBatchNorm.convert_sync_batchnorm(model) # use if model contains batchnorm.
-    model = nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-
-    # === LOSS === #
-    get_loss = getattr(__import__("train.loss.{}".format(args.loss), fromlist=["get_loss"]), "get_loss")
-    loss = get_loss(args, model).cuda(args.gpu)
-
-    # === OPTIMIZER === #
-    from train.core.optimizer import get_optimizer
-    optimizer = get_optimizer(args, model)
-
-    # === TRAINING === #
-    Trainer = getattr(__import__("train.trainer.{}".format(args.trainer), fromlist=["Trainer"]), "Trainer")
-    Trainer(args, loader, model, loss, optimizer).fit()
-
 
 if __name__ == "__main__":
     main()

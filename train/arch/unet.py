@@ -124,6 +124,13 @@ if __name__ == '__main__':
         model = UNet(1, 1, [32,64,128], norm_type='batch', dim=3)
         model.eval()
         batch_size = 1
-        img_size = 108
+        img_size = 300
         input_size = [1,1] + [img_size]*3
         summary(model, input_size=input_size)
+        data = torch.randn(input_size).cuda()
+        model = model.cuda()
+        torch.cuda.reset_peak_memory_stats()
+        output = model(data)
+        print(f"input shape: {output.shape}")
+        print(f"当前显存: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
+        print(f"峰值显存: {torch.cuda.max_memory_allocated() / 1024**2:.2f} MB")
