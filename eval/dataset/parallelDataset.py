@@ -5,7 +5,7 @@ import numpy as np
 if __name__ == '__main__':
     import sys, os
     sys.path.append(os.getcwd())
-from eval.utils.imageReader import ImageReader
+from eval.utils.image_reader import ImageReader
 
 class parallelDataset(Dataset):
     def __init__(self, image_path:str, patch_size:int, slice_thickness:int, level:int=0, channel:int=0, roi:list=None):
@@ -18,7 +18,7 @@ class parallelDataset(Dataset):
 
         self.patch_size = patch_size
         self.slice_thickness = slice_thickness
-        self.level = level,
+        self.level = level
         self.channel = channel
 
         self.border_width = 4
@@ -53,21 +53,22 @@ class parallelDataset(Dataset):
 
     def __getitem__(self, idx):
         roi = self.PATCH_ROIS[idx]
-        if (roi[3:] <= np.asarray([128, 128, 128])).all():
-            img_patch = self.IMAGE.from_roi(roi, padding='reflect', level=self.level, channel=self.channel)
-            re_batch = torch.tensor(False)
-            re_batch = False
-            offset = roi[:3]
-        else:
-            roi[:3] = [i-self.border_width for i in roi[:3]]
-            roi[3:] = [i+2*self.border_width for i in roi[3:]]
-            img_patch = self.IMAGE.from_roi(roi, padding='reflect', level=self.level, channel=self.channel)
-            re_batch = torch.tensor(True)
-            re_batch = True
-            offset=[i+self.border_width for i in roi[:3]]
+        # pachify the roi
+        # if (roi[3:] <= np.asarray([128, 128, 128])).all():
+        #     re_batch = False
+        #     offset = roi[:3]
+        # else:
+        #     roi[:3] = [i-self.border_width for i in roi[:3]]
+        #     roi[3:] = [i+2*self.border_width for i in roi[3:]]
+        #     re_batch = True
+        #     offset=[i+self.border_width for i in roi[:3]]
+
+        # no need to pachify the roi
+        re_batch = False
+        offset = roi[:3]
+
+        img_patch = self.IMAGE.from_roi(roi, padding='reflect', level=self.level, channel=self.channel)
         img_patch = img_patch.astype(np.float32)
-        # img_patch = torch.from_numpy(img_patch).to(torch.float32)
-        # offset = torch.from_numpy(np.asarray(offset)).to(torch.float32)
         return img_patch, offset, re_batch
         
 if __name__ == '__main__':

@@ -108,6 +108,7 @@ class UNet(nn.Module):
 
 class SegNet():
     def __init__(self, ckpt_path, bg_thres=150):
+        print('=== PyTorch Model ===')
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if 'tiny' in ckpt_path:
             model_dims = [32,64,128]

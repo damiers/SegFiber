@@ -1,5 +1,5 @@
 # background threshold
-bg_thres: 300
+bg_thres: 150
 # resolution level
 level: 0
 # channel number, 0 means 488
@@ -14,10 +14,16 @@ slice_thickness: 300
 # roi: [0,0,0,128,128,128]
 roi: null
 
-# where your image data
-input_path: 'test/data/test.tif'
-# input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250302_YY_SEED_TTA-1E9-28D_2608_1/Recon_wholebrain_1um/TTA2608_1um_WholeBrain.ims'
+# whether to keep branch in segmentation output
+# if true, the edges of the branches will be kept in the segmentation result
+# if false, the branches will be removed from the segmentation result
+keep_branch: false
 
-# to sqlite file
-output_path: 'test/out/test.db'
-# output_path: 'test/out/SEED_TTA2608_1um_WholeBrain.db'
+# # where your image data
+input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250604_SJZ_SEED_PD-5E8_C534_1/Recon_4um_optimize/Recon_1um_optimize/C534_1um.ims'
+# # to sqlite file
+output_path: '/share/home/liuy/project/data/neurofly_data/db/SEED_C534_1um.db'
+
+# workstation test
+# input_path: 'test/neurofly_data/img/test.tif'
+# output_path: 'test/neurofly_data/db/test.db'

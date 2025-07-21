@@ -78,6 +78,7 @@ class UNet3D:
 
 class SegNet():
     def __init__(self,ckpt_path:str,bg_thres=150):
+        print('=== Tinygrad Model ===')
         # TODO: remove this after conflicts with conda were solved
         os.environ['METAL_XCODE'] = '1'
         os.environ['DISABLE_COMPILER_CACHE'] = '1'

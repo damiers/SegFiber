@@ -3,7 +3,6 @@ import networkx as nx
 from scipy.spatial.distance import cdist
 from skimage.morphology import skeletonize
 from skimage.measure import label, regionprops
-from tqdm import tqdm
 import os
 
 from eval.utils.patch import get_patch_rois
@@ -38,7 +37,6 @@ class Seger():
         actual_size = [i-border_size*2 for i in bordered_size]
         block_rois = get_patch_rois([border_size, border_size, border_size] + actual_size, block_size)
         large_mask = np.zeros(img.shape,dtype=np.uint8)
-        print(f'blocksize: {len(block_rois)}')
         for roi in block_rois:
             tg_size = self.border_width
             # add border if possible
@@ -82,8 +80,8 @@ class Seger():
             large_mask[roi[0]:roi[0]+roi[3], roi[1]:roi[1]+roi[4], roi[2]:roi[2]+roi[5]] = mask
         processed_mask = self.postprocess(large_mask)
         return processed_mask[border_size:-border_size, border_size:-border_size, border_size:-border_size]
-
-    def mask_to_segs(self, mask, offset=[0,0,0]):
+    
+    def mask_to_segs(self, mask, keep_branch, offset=[0,0,0]):
         '''
         segment:
         {
@@ -112,58 +110,111 @@ class Seger():
         segments = []
         for region in regions:
             points = region.coords
-            distances = cdist(points, points)
-            adjacency_matrix = distances <= 1.8 # sqrt(3)
-            np.fill_diagonal(adjacency_matrix, 0)
-            graph:nx.Graph = nx.from_numpy_array(adjacency_matrix.astype(np.uint8))
-            spanning_tree = nx.minimum_spanning_tree(graph, algorithm='kruskal', weight=None)
-            # remove circles by keeping only DFS tree
-            graph.remove_edges_from(set(graph.edges) - set(spanning_tree.edges))
+            if len(points) == 1:
+                pt = (points + offset).tolist()
+                segments.append({
+                    "points": pt,
+                    "nodes": pt,
+                    "edges": [],
+                    "checked": [-1]
+                })
+                continue
 
-            branch_nodes = [node for node, degree in graph.degree() if degree >= 3]
-            branch_nbrs = []
-            for node in branch_nodes:
-                branch_nbrs += list(graph.neighbors(node))
+            D = cdist(points, points)
+            A = D <= 1.8 # sqrt(3)
+            np.fill_diagonal(A, 0)
+            G:nx.Graph = nx.from_numpy_array(A.astype(np.uint8))
+            T:nx.Graph = nx.minimum_spanning_tree(G, algorithm='kruskal', weight=None)
+            G.remove_edges_from(set(G.edges) - set(T.edges))
 
-            for bn in branch_nodes:
-                if len(list(graph.neighbors(node)))==3:
-                    segments.append(
-                        {
-                            'points' : [[i+j for i,j in zip(points[bn].tolist(),offset)]],
-                            'sampled_points' : [[i+j for i,j in zip(points[bn].tolist(),offset)]]
-                        }
-                    )
+            sampled_edges = []
+            sampled_coords =[]
+            checked = []
+            idx = 0
+            nid2idx_map = {}
+            sampled_path_nids_list = []
+            if keep_branch:
+                deg = dict(T.degree())
+                key_nodes  = {n for n,d in deg.items() if d != 2}
+                deg2_nodes = {n for n,d in deg.items() if d == 2}
 
-            graph.remove_nodes_from(branch_nbrs)
-            graph.remove_nodes_from(branch_nodes)
+                subG_deg2 = T.subgraph(deg2_nodes)
+                for comp in nx.connected_components(subG_deg2):
+                    end_points = []
+                    for src in comp:
+                        for dst in T.neighbors(src):
+                            if dst not in comp:
+                                end_points.append(dst)
+                    # if there are not exactly two end points, skip this component
+                    if len(end_points) != 2:
+                        continue
 
-            connected_components = list(nx.connected_components(graph))
-            for nodes in connected_components:
-                if len(nodes)<=interval*2:
-                    continue
-                subgraph = graph.subgraph(nodes).copy()
-                end_nodes = [node for node, degree in subgraph.degree() if degree == 1]
-                if (len(end_nodes)!=2):
-                    continue
-                path = nx.shortest_path(subgraph, source=end_nodes[0], target=end_nodes[1], weight=None, method='dijkstra') 
-                # path to segment
-                seg_points = np.array([points[i].tolist() for i in path])
-                seg_points = seg_points + np.array(offset)
-                seg_points = seg_points.tolist()
-                sampled_points = seg_points[:-(interval-1):interval]
-                sampled_points.append(seg_points[-1])
-                segments.append(
-                    {
-                        'points' : seg_points,
-                        'sampled_points' : sampled_points
-                    }
-                )
-        return skel, segments
+                    # find the shortest path between the two end points
+                    src, dst = end_points
+                    path_nids = nx.shortest_path(T, src, dst)
+                    sampled_path_nids = path_nids[0:-(interval-1):interval] + [path_nids[-1]]
+                    sampled_path_nids_list.append(sampled_path_nids)
+                    for i, (src_nid, dst_nid) in enumerate(zip(sampled_path_nids[:-1], sampled_path_nids[1:])):
+                        def __check_node(nid):
+                            return -1 if nid in key_nodes else 0
+                        if src_nid not in nid2idx_map:
+                            nid2idx_map[src_nid] = idx
+                            sampled_coords.append(points[src_nid] + offset)
+                            checked.append(__check_node(src_nid))
+                            idx += 1
+                        if dst_nid not in nid2idx_map:
+                            nid2idx_map[dst_nid] = idx
+                            sampled_coords.append(points[dst_nid] + offset)
+                            checked.append(__check_node(dst_nid))
+                            idx += 1
+                        sampled_edges.append([nid2idx_map[src_nid], nid2idx_map[dst_nid]])
+            else:
+                branch_nodes = [node for node, degree in G.degree() if degree >= 3]
+                branch_nbrs = []
+                for node in branch_nodes:
+                    branch_nbrs += list(G.neighbors(node))
+                for bnid in branch_nodes:
+                    if len(list(T.neighbors(node)))==3:
+                        bnode_coord = (points[bnid] + offset).tolist()
+                        segments.append({
+                            "points": [bnode_coord],
+                            "nodes": [bnode_coord],
+                            "edges": [],
+                            "checked": [-1]
+                        })
+                T.remove_nodes_from(branch_nbrs)
+                T.remove_nodes_from(branch_nodes)
+
+                connected_components = list(nx.connected_components(T))
+                for CC in connected_components:
+                    if len(CC)<=interval*2:
+                        continue
+                    subgraph:nx.Graph = T.subgraph(CC).copy()
+                    end_nodes = [node for node, degree in subgraph.degree() if degree == 1]
+                    if (len(end_nodes)!=2):
+                        continue
+                    path_nids = nx.shortest_path(subgraph, source=end_nodes[0], target=end_nodes[1], weight=None, method='dijkstra') 
+                    sampled_path_nids = path_nids[0:-(interval-1):interval] + [path_nids[-1]]
+                    for nid in sampled_path_nids:
+                        nid2idx_map[nid] = idx
+                        sampled_coords.append((points[nid] + offset).tolist())
+                        idx += 1
+                    checked += [-1] + [0] * (len(sampled_path_nids)-2) + [-1]
+                    for i, (src_nid, dst_nid) in enumerate(zip(sampled_path_nids[:-1], sampled_path_nids[1:])):
+                        sampled_edges.append([nid2idx_map[src_nid], nid2idx_map[dst_nid]])
+            segments.append({
+                "points": (points+offset).tolist(),
+                "nodes": sampled_coords,
+                "edges": sampled_edges,
+                "checked": checked
+            })
+        return segments
     
-    def process(self, img_patch, offset, re_batch):
-        if not re_batch:
-            mask = self.seg_net.get_mask(img_patch)
-        else:
-            mask = self.get_large_mask(img_patch)
-        _, segs = self.mask_to_segs(mask, offset=offset)
+    def process(self, img_patch, offset, re_batch, keep_branch):
+        # if not re_batch:
+        #     mask = self.seg_net.get_mask(img_patch)
+        # else:
+        #     mask = self.get_large_mask(img_patch)
+        mask = self.seg_net.get_mask(img_patch)
+        segs = self.mask_to_segs(mask, keep_branch=keep_branch, offset=offset)
         return segs
