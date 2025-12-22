@@ -15,7 +15,8 @@ class Seger():
 
         if ckpt_path is None:
             ckpt_path = DEFAULT_CKPT_PATH
-        self.seg_net = SegNet(ckpt_path, bg_thres)        
+        self.seg_net = SegNet(ckpt_path, bg_thres)
+        print(f"=== SegNet loaded ckpt from {ckpt_path} ===")
         # border width
         self.border_width = 4
 
@@ -211,10 +212,10 @@ class Seger():
         return segments
     
     def process(self, img_patch, offset, re_batch, keep_branch):
-        # if not re_batch:
-        #     mask = self.seg_net.get_mask(img_patch)
-        # else:
-        #     mask = self.get_large_mask(img_patch)
-        mask = self.seg_net.get_mask(img_patch)
+        if not re_batch:
+            mask = self.seg_net.get_mask(img_patch)
+        else:
+            mask = self.get_large_mask(img_patch)
+        # mask = self.seg_net.get_mask(img_patch)
         segs = self.mask_to_segs(mask, keep_branch=keep_branch, offset=offset)
         return segs

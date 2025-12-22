@@ -22,13 +22,16 @@ import math
 import pprint
 
 import sys
+import os
 
 class Trainer:
-    def __init__(self, args, loader, model, loss, optimizer):
+    def __init__(self, args, loader, model, loss, optimizer, val_loader=None):
         pprint.pprint(vars(args))
 
         self.args = args
         self.train_gen = loader
+        self.val_gen = val_loader
+        self.best_val_loss = float('inf')
         self.model = model
         self.loss = loss
         self.optimizer = optimizer
@@ -45,6 +48,7 @@ class Trainer:
         metric_logger = MetricLogger(delimiter="  ")
         header = 'Epoch: [{}/{}]'.format(epoch, self.args.epochs)
 
+        self.model.train()
         for it, (input_data, labels) in enumerate(metric_logger.log_every(self.train_gen, 10, header)):
             # === Global Iteration === #
             it = len(self.train_gen) * epoch + it
@@ -88,6 +92,40 @@ class Trainer:
 
         metric_logger.synchronize_between_processes()
         print("Averaged stats:", metric_logger)
+    
+    def val_one_epoch(self, epoch):
+        if self.args.main:
+            metric_logger = MetricLogger(delimiter="  ")
+            header = 'Val Epoch: [{}/{}]'.format(epoch, self.args.epochs)
+            self.model.eval()
+            avg_val_loss = 0.0
+            for it, (input_data, labels) in enumerate(metric_logger.log_every(self.val_gen, 10, header)):
+                # === Inputs === #
+                input_data, labels = input_data.cuda(non_blocking=True), labels.cuda(non_blocking=True)
+
+                # === Forward pass === #
+                with torch.no_grad():
+                    preds = self.model(input_data)
+                    loss = self.loss(preds, labels)
+                
+                # === Logging === #
+                torch.cuda.synchronize()
+                metric_logger.update(val_loss=loss)
+                avg_val_loss += loss.item()
+            avg_val_loss /= len(self.val_gen)
+            self.writer.add_scalar('loss/ValEpochAVGLoss', avg_val_loss, epoch+1)
+            if avg_val_loss < self.best_val_loss:
+                self.best_val_loss = avg_val_loss
+                state = dict(
+                    epoch=epoch+1, 
+                    model=self.model.state_dict(), 
+                    optimizer=self.optimizer.state_dict(),
+                    args = self.args
+                )
+                torch.save(state, os.path.join(self.args.out, 'weights', self.args.model, 'best_val_model.pth'))
+                print(f'Saved Best Val Model with loss {self.best_val_loss:.4f} at epoch {epoch+1}')
+        else:
+            torch.cuda.synchronize()
 
     def fit(self):
         # === Resume === #
@@ -104,29 +142,32 @@ class Trainer:
 
         # === training loop === #
         for epoch in range(self.start_epoch, self.args.epochs):
-
             self.train_gen.sampler.set_epoch(epoch)
             self.train_one_epoch(epoch, lr_schedule)
-
+            self.val_one_epoch(epoch)
             # === save model === #
             if self.args.main and (epoch+1)%self.args.save_every == 0:
                 self.save(epoch)
 
     def load_if_available(self):
-        ckpts = sorted(glob(f'{self.args.out}/weights/{self.args.model}/Epoch_*.pth'))
-
-        if len(ckpts) >0:
-            ckpt = torch.load(ckpts[-1], map_location='cpu')
-            self.start_epoch = ckpt['epoch']
-            self.model.load_state_dict(ckpt['model'])
-            self.optimizer.load_state_dict(ckpt['optimizer'])
-            if self.args.fp16: self.fp16_scaler.load_state_dict(ckpt['fp16_scaler'])
-            print("Loaded ckpt: ", ckpts[-1])
-
-        else:
+        if hasattr(self.args, 'pretrain_ckpt') and self.args.pretrain_ckpt and self.args.pretrain_ckpt != '':
+            ckpt = torch.load(self.args.pretrain_ckpt, map_location='cpu')
+            self.model.load_state_dict(ckpt)
             self.start_epoch = 0
-            print("Starting from scratch")
+            print("Loaded pretrain ckpt: ", self.args.pretrain_ckpt)
+        else:
+            ckpts = sorted(glob(f'{self.args.out}/weights/{self.args.model}/Epoch_*.pth'))
+            if len(ckpts) > 0:
+                ckpt = torch.load(ckpts[-1], map_location='cpu')
+                self.start_epoch = ckpt['epoch']
+                self.model.load_state_dict(ckpt['model'])
+                self.optimizer.load_state_dict(ckpt['optimizer'])
+                if self.args.fp16: self.fp16_scaler.load_state_dict(ckpt['fp16_scaler'])
+                print("Loaded ckpt: ", ckpts[-1])
 
+            else:
+                self.start_epoch = 0
+                print("Starting from scratch")
 
     def save(self, epoch):
         if self.args.fp16:

@@ -54,18 +54,18 @@ class parallelDataset(Dataset):
     def __getitem__(self, idx):
         roi = self.PATCH_ROIS[idx]
         # pachify the roi
-        # if (roi[3:] <= np.asarray([128, 128, 128])).all():
-        #     re_batch = False
-        #     offset = roi[:3]
-        # else:
-        #     roi[:3] = [i-self.border_width for i in roi[:3]]
-        #     roi[3:] = [i+2*self.border_width for i in roi[3:]]
-        #     re_batch = True
-        #     offset=[i+self.border_width for i in roi[:3]]
+        if (roi[3:] <= np.asarray([128, 128, 128])).all():
+            re_batch = False
+            offset = roi[:3]
+        else:
+            roi[:3] = [i-self.border_width for i in roi[:3]]
+            roi[3:] = [i+2*self.border_width for i in roi[3:]]
+            re_batch = True
+            offset=[i+self.border_width for i in roi[:3]]
 
         # no need to pachify the roi
-        re_batch = False
-        offset = roi[:3]
+        # re_batch = False
+        # offset = roi[:3]
 
         img_patch = self.IMAGE.from_roi(roi, padding='reflect', level=self.level, channel=self.channel)
         img_patch = img_patch.astype(np.float32)

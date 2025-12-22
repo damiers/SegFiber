@@ -1,7 +1,9 @@
 test/
+out/
 
 __pycache__/
 *.egg-info
 .DS_Store
 
 .vscode
+.agents/

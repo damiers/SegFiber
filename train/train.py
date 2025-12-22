@@ -169,6 +169,9 @@ def train(gpu, args):
     get_dataset = getattr(__import__("train.dataset.{}".format(args.dataset), fromlist=["get_dataset"]), "get_dataset")
     dataset = get_dataset(args)
 
+    val_dataset = get_dataset(args, mode='val')
+    val_loader = DataLoader(dataset=val_dataset, batch_size=args.batch_per_gpu)
+
     sampler = DistributedSampler(dataset, shuffle=args.shuffle, num_replicas = args.world_size, rank = args.rank, seed = 31)
     loader = DataLoader(dataset=dataset, 
                         sampler=sampler,
@@ -195,7 +198,7 @@ def train(gpu, args):
 
     # === TRAINING === #
     Trainer = getattr(__import__("train.trainer.{}".format(args.trainer), fromlist=["Trainer"]), "Trainer")
-    Trainer(args, loader, model, loss, optimizer).fit()
+    Trainer(args, loader, model, loss, optimizer, val_loader).fit()
 
 
 if __name__ == "__main__":

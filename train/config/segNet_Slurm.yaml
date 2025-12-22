@@ -1,0 +1,41 @@
+# task name
+model: SegFiber_Slurm
+
+# model
+arch: 'unet'
+dataset: 'skelDataset'
+loss: 'clDiceLoss'
+optimizer: 'adam'
+
+in_channels: 1
+out_channels: 1
+features: [32, 64, 128]
+norm_type: 'batch'
+
+pretrain_ckpt: '/share/home/liuy/project/SegFiber_dev/eval/model/universal_tiny.pth'
+
+# data
+data: '/share/home/liuy/project/data/neurofly_data/seg_fiber/C534_Seg_Train_Data/train'
+patch_size: 64
+overlap: 0.25
+
+val_data: '/share/home/liuy/project/data/neurofly_data/seg_fiber/C534_Seg_Train_Data/val'
+
+# learning rate
+lr_start: 5e-4
+lr_end: 1e-6
+lr_warmup: 5
+
+# training
+epochs: 200
+save_every: 5
+batch_per_gpu: 32
+
+# single workstation
+gpus: 0,
+
+# cluster
+slurm_ngpus: 4
+slurm_nnodes: 1
+slurm_nodelist: 'c003'
+slurm_partition: 'compute'

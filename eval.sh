@@ -9,9 +9,9 @@
 # conda activate ${CONDA_ENV_NAME}
 
 # slurm partition
-SLURM_PARTITION="tao"
+SLURM_PARTITION="compute"
 # slurm node in the partition
-SLURM_NODE="t000"
+SLURM_NODE="c003"
 # gpus per node
 SLURM_NGPUS=4
 

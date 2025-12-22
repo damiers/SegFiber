@@ -19,10 +19,16 @@ roi: null
 # if false, the branches will be removed from the segmentation result
 keep_branch: false
 
+ckpt_path: '/share/home/liuy/project/SegFiber_dev/out/weights/for_C534/best_val_model_tiny.pth'
 # # where your image data
-input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250604_SJZ_SEED_PD-5E8_C534_1/Recon_4um_optimize/Recon_1um_optimize/C534_1um.ims'
+# input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250604_SJZ_SEED_PD-5E8_C534_1/Recon_4um_optimize/Recon_1um_optimize/C534_1um.ims'
+# input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250504_YY_SEED_TVR-5E7-24_8954_1/Reconstruction_1um/ROIImage/1.0.ims'
+# input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250418_YY_BCP_CAMKII_T154_1/T154_1um.ims'
+input_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250612_YY_CAMKII_1E9-59D_T155_1/Reconstruction_1um/ROIImage/1.0.ims'
 # # to sqlite file
-output_path: '/share/home/liuy/project/data/neurofly_data/db/SEED_C534_1um.db'
+# output_path: '/share/home/liuy/project/data/neurofly_data/db/SEED_C534_1um_SegFineTune.db'
+# output_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250418_YY_BCP_CAMKII_T154_1/SEED_T154_1um.db'
+output_path: '/share/data/VISoR_Reconstruction/SIAT_SIAT/XuFang/Mouse_Brain/20250612_YY_CAMKII_1E9-59D_T155_1/Reconstruction_1um/ROIImage/SEED_T155_1um.db'
 
 # workstation test
 # input_path: 'test/neurofly_data/img/test.tif'

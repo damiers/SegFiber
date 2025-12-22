@@ -120,17 +120,15 @@ def get_model(args):
 if __name__ == '__main__':
     import torch
     from torchinfo import summary
-    with torch.no_grad():
-        model = UNet(1, 1, [32,64,128], norm_type='batch', dim=3)
-        model.eval()
-        batch_size = 1
-        img_size = 300
-        input_size = [1,1] + [img_size]*3
-        summary(model, input_size=input_size)
-        data = torch.randn(input_size).cuda()
-        model = model.cuda()
-        torch.cuda.reset_peak_memory_stats()
-        output = model(data)
-        print(f"input shape: {output.shape}")
-        print(f"当前显存: {torch.cuda.memory_allocated() / 1024**2:.2f} MB")
-        print(f"峰值显存: {torch.cuda.max_memory_allocated() / 1024**2:.2f} MB")
+    from argparse import Namespace
+    pretrain_ckpt_path = '/home/ryuuyou/E5/project/SegFiber_dev/eval/model/universal_tiny.pth'
+    ckpt = torch.load(pretrain_ckpt_path, map_location='cpu')
+    
+    args = Namespace()
+    args.in_channels = 1
+    args.out_channels = 1
+    args.features = [32,64,128]
+    args.norm_type = 'batch'
+    model = get_model(args)
+
+    model.load_state_dict(ckpt)

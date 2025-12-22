@@ -31,6 +31,8 @@ class skelDataset(Dataset):
         img_path = os.path.join(path, 'img')
         mask_path = os.path.join(path, 'mask')
         bg_path = os.path.join(path, 'img_bg')
+        if not os.path.exists(bg_path):
+            bg_path = None
         print(f'image path: {img_path}')
         print(f'mask path: {mask_path}')
         print(f'background path: {bg_path}')
@@ -44,11 +46,10 @@ class skelDataset(Dataset):
         self.fgp_in_patches = []
 
         img_name_list = sorted(os.listdir(img_path))
-        mask_name_list = sorted(os.listdir(mask_path))
-        bg_name_list = os.listdir(bg_path)
-
         self.img_name_list = img_name_list
+        mask_name_list = sorted(os.listdir(mask_path))
         self.mask_name_list = mask_name_list
+        bg_name_list = os.listdir(bg_path) if bg_path else []
         self.bg_name_list = bg_name_list
 
         # add fg img
@@ -116,11 +117,22 @@ class skelDataset(Dataset):
         mask = torch.from_numpy(mask)
         return img, mask
 
-def get_dataset(args):
-    train_dataset = skelDataset(path=args.data, 
+def get_dataset(args, mode='train'):
+    if mode == 'train':
+        data_path = args.data
+    elif mode == 'val':
+        data_path = args.val_data
+    train_dataset = skelDataset(path=data_path, 
                                 patch_size=args.patch_size, 
                                 overlap=args.overlap)
     return train_dataset
 
 if __name__ == "__main__":
-    pass
+    from argparse import Namespace
+    args = Namespace()
+    args.data = '/home/ryuuyou/E5/project/SegFiber_dev/test/neurofly_data/seg_fiber/C534_Seg_Train_Data/train'
+    args.val_data = '/home/ryuuyou/E5/project/SegFiber_dev/test/neurofly_data/seg_fiber/C534_Seg_Train_Data/val'
+    args.patch_size = 64
+    args.overlap = 0.25
+    ds = get_dataset(args, 'train')
+    print(len(ds))

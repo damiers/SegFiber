@@ -12,10 +12,17 @@ out_channels: 1
 features: [32, 64, 128]
 norm_type: 'batch'
 
+pretrain_ckpt: '/home/ryuuyou/E5/project/SegFiber_dev/eval/model/universal_tiny.pth'
+# pretrain_ckpt: '/share/home/liuy/project/SegFiber_dev/eval/model/universal_tiny.pth'
+
 # data
-data: '/path/of/data'
+data: '/home/ryuuyou/E5/project/SegFiber_dev/test/neurofly_data/seg_fiber/C534_Seg_Train_Data/train'
+# data: '/share/home/liuy/project/SegFiber_dev/test/neurofly_data/seg_fiber/C534_Seg_Train_Data/train'
 patch_size: 64
-overlap: 16
+overlap: 0.25
+
+val_data: '/home/ryuuyou/E5/project/SegFiber_dev/test/neurofly_data/seg_fiber/C534_Seg_Train_Data/val'
+# val_data: '/share/home/liuy/project/SegFiber_dev/test/neurofly_data/seg_fiber/C534_Seg_Train_Data/val'
 
 # learning rate
 lr_start: 5e-4
@@ -25,13 +32,13 @@ lr_warmup: 5
 # training
 epoch: 100
 save_every: 5
-batch_per_gpu: 8
+batch_per_gpu: 16
 
 # single workstation
-gpus: 0
+gpus: 0,
 
 # cluster
-slurm_ngpus: 2
+slurm_ngpus: 4
 slurm_nnodes: 1
 slurm_nodelist: 'c003'
 slurm_partition: 'compute'

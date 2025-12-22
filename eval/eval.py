@@ -74,6 +74,9 @@ def parse_args(args_debug=None):
     
     parser.add_argument('-keep_branch', type=bool, default=False,
                                             help='keep branch in segmentation output')
+    
+    parser.add_argument('-ckpt_path', type=str, default=None,
+                                            help='pretrained checkpoint path')
 
     # === SLURM === #
     parser.add_argument('-slurm', action='store_true', default=False,
@@ -173,7 +176,8 @@ def WORKER(gpu, args):
         drop_last=False,
         collate_fn=__custom_collate__
     )
-    seger = Seger(ckpt_path=None, bg_thres=args.bg_thres, cuda_device_id=args.gpu)
+    ckpt_path = args.ckpt_path if hasattr(args, 'ckpt_path') else None
+    seger = Seger(ckpt_path=ckpt_path, bg_thres=args.bg_thres, cuda_device_id=args.gpu)
     neurodb = NeurodbSQLite(args.output_path)
     _, seg_version = neurodb.get_max_sid_version()
 
