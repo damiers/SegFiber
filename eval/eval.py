@@ -66,7 +66,7 @@ def parse_args(args_debug=None):
     parser.add_argument('-patch_size', type=int, default=0,
                                             help='the size of the cube accepted by the segmentation model')
                                             
-    parser.add_argument('-slice_thnickness', type=int, default=300,
+    parser.add_argument('-slice_thickness', type=int, default=300,
                                             help='thickness of a brain slice')
     
     parser.add_argument('-roi', type=int, nargs='+', default=None,
