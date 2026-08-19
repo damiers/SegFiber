@@ -1,45 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "seg_fiber"
-version = "0.1"
-description = "SegFiber"
+name = "seg-fiber"
+version = "0.2.0"
+description = "Whole-brain fiber segmentation training and inference"
 authors = [
-    { name="Rubin Zhao", email="beanli161514@gmail.com" },
-    { name="Yang Liu", email="ryuuyou0529@163.com" }
+    { name = "Rubin Zhao", email = "beanli161514@gmail.com" },
+    { name = "Yang Liu", email = "ryuuyou0529@163.com" },
 ]
 license = { text = "GPL-3.0-or-later" }
 readme = "README.md"
-requires-python = ">=3.8"
-
-classifiers = [
-    "Programming Language :: Python :: 3"
-]
-
+requires-python = ">=3.10"
+classifiers = ["Programming Language :: Python :: 3"]
 dependencies = [
-    'numpy',
-    'tinygrad',
-    'h5py',
-    'zarr',
-    'tifffile',
-    'tqdm',
-    'scipy',
-    'scikit-image',
-    'networkx',
-    'rtree'
+    "empatches",
+    "h5py",
+    "networkx",
+    "numpy",
+    "ruamel.yaml",
+    "scikit-image",
+    "tensorboard",
+    "tifffile",
+    "torch",
+    "tqdm",
+    "zarr",
 ]
+
+[project.scripts]
+segfiber = "seg_fiber.cli.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+"seg_fiber.ckpt" = ["*.pth"]
+"seg_fiber.model.config" = ["*.yaml"]
+"seg_fiber.model.runtime" = ["*.sh"]
 
 [tool.setuptools.packages.find]
-include = ["seg_fiber", "seg_fiber.*"]
-
-[options.extras_require]
-pytorch = ["torch"]
-
-[options.packages.find]
-where = "seg_fiber"
-
-# [tool.setuptools.package-data]
-# "seg_fiber.model_pth" = ["*.pth"]
-# "seg_fiber.model_st" = ["*.safetensors"]
-
-[build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+where = ["src"]
+include = ["seg_fiber*"]

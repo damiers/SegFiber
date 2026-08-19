@@ -1,0 +1,89 @@
+# === EXPERIMENT ===
+experiment:
+  name: SegFiber
+  output_dir: out
+  seed: 31
+
+# === RUNTIME ===
+runtime:
+  name: standalone
+  params:
+    devices: [0]
+
+# === TRAINER ===
+trainer:
+  name: segfiber
+  params:
+    epochs: 100
+    save_every: 5
+    batch_size: 16
+    shuffle: true
+    workers: 2
+    fp16: false
+    pretrain_checkpoint: universal_tiny.pth
+
+# === DATASET ===
+dataset:
+  train:
+    name: skeleton
+    params:
+      path:
+      patch_size: 64
+      overlap: 0.25
+      preprocess: true
+  val:
+    name: skeleton
+    params:
+      path:
+      patch_size: 64
+      overlap: 0.25
+      preprocess: true
+  infer:
+    name: whole_brain
+    params:
+      image_path:
+      patch_size: 300
+      slice_thickness: 300
+      level: 0
+      channel: 0
+      roi:
+
+# === ARCHITECTURE ===
+arch:
+  name: unet
+  params:
+    in_channels: 1
+    out_channels: 1
+    features: [32, 64, 128]
+    norm_type: batch
+
+# === LOSS ===
+loss:
+  name: cldice
+  params:
+    skeleton_iterations: 5
+
+# === OPTIMIZER ===
+optimizer:
+  name: adam
+  params:
+    lr: 0.0005
+
+# === SCHEDULER ===
+scheduler:
+  name: cosine
+  params:
+    final_lr: 0.000001
+    warmup_epochs: 5
+    reference_batch_size: 256
+
+# === INFERENCE ===
+inference:
+  name: segfiber
+  params:
+    checkpoint: universal_tiny.pth
+    output_path: out/segfiber.db
+    background_threshold: 150
+    tile_batch_size: 8
+    keep_branch: false
+    workers: 0

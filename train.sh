@@ -1,4 +1,0 @@
-python -m train.train -cfg train/config/segNet.yaml \
-                    -out out/ \
-                    -slurm \
-                    -reset

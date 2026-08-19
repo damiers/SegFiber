@@ -1,73 +1,66 @@
 # SegFiber
 
-1. install conda & create a conda environment
+SegFiber trains and runs whole-brain fiber segmentation models on the BAIME
+project structure.
 
-   ```bash
-   conda create -n ${CONDA_ENV} python=3.10
-   ```
-2. clone this repo in local & install package
+## Install
 
-   ```bash
-   git clone https://github.com/damiers/SegFiber.git SegFiber
+```bash
+pip install -e .
+```
 
-   cd SegFiber
+## Configure
 
-   conda activate ${CONDA_ENV}
+Copy and edit the packaged template:
 
-   pip install -e .
+```bash
+cp src/seg_fiber/model/config/template.yaml config.yaml
+```
 
-   # or with pytorch
-   pip install -e .[pytorch]
-   ```
-3. edit algorithm releated parameters in the `config.yaml`, for example:
+Every model module uses a `{name, params}` declaration. Training artifacts keep
+the legacy layout below `experiment.output_dir`:
 
-   ```yaml
-   # background threshold
-   bg_thres: 300
-   # resolution level
-   level: 2
-   # channel number, 0 means 488
-   channel: 0
-   # cube size accepted by the segmentation model
-   chunk_size: 300
-   # thickness of one brain slice
-   splice: 300
+```text
+weights/<experiment.name>/
+logs/<experiment.name>/
+slurm/
+```
 
-   # ROI you wanna segment, 'null' means the entire volume to be processed
-   # format: [x_start, y_start, z_start, x_size, y_size, z_size]
-   # roi: [0,0,0,128,128,128]
-   roi: null
+## Train
 
-   # where your image data
-   input_path: 'test/data/test.tif'
-   # where the database file is output
-   output_path: 'test/out/test.db'
-   ```
-4. edit SLURM system releated parameters in the `run.sh`, for example:
+```bash
+segfiber train --config config.yaml
+```
 
-   ```bash
-   #!/bin/bash
+Use `--runtime ddp --devices 0,1` for local DDP. Edit and run
+`script/train_slurm.sh` for Slurm.
 
-   # where your conda is installed
-   CONDA_PATH='~/software/opt/miniconda3'
-   # your conda environment name
-   CONDA_ENV_NAME="torch"
+## Infer
 
-   source ${CONDA_PATH}/etc/profile.d/conda.sh
-   conda activate ${CONDA_ENV_NAME}
+```bash
+segfiber infer \
+  --config config.yaml \
+  --input brain.ims \
+  --output segmentation.db \
+  --checkpoint FT_C534_model_tiny.pth
+```
 
-   # slurm partition
-   SLURM_PARTITION="compute"
-   # slurm node in the partition
-   SLURM_NODE="c001"
+The two packaged checkpoint names are `FT_C534_model_tiny.pth` and
+`universal_tiny.pth`. They use the canonical state-dict format without a
+`module.` prefix.
 
-   # you can specify a task name
-   # '-reset' means if the file in "output_path" (specified in config.yaml) already exits, it will be overwrote. you can delete it if you wish.
-   python run.py -task seg_fiber \
-                 -gpu 0 \
-                 -cfg config.yaml \
-                 -slurm \
-                 -slurm_nodelist ${SLURM_NODE} \
-                 -slurm_partition ${SLURM_PARTITION} \
-                 -reset
-   ```
+Local and Slurm DDP inference split patches without duplication. Each worker
+segments its own patches, and rank 0 writes results to the original NeuroDB
+SQLite schema in global patch order. Large patches are internally inferred in
+batches of eight tiles by default; adjust `inference.params.tile_batch_size`
+to match the available GPU memory.
+
+To split a brain into Z slabs and write one database per slab, use the
+`brain_z_slabs` dataset and inferencer:
+
+```bash
+segfiber infer \
+  --config src/seg_fiber/model/config/brain_z_slabs.yaml \
+  --input brain.ims \
+  --output out/slabs
+```

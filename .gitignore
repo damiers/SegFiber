@@ -1,5 +1,6 @@
-test/
+tests/
 out/
+/backend/
 
 __pycache__/
 *.egg-info
