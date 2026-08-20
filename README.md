@@ -64,3 +64,13 @@ segfiber infer \
   --input brain.ims \
   --output out/slabs
 ```
+
+Merge completed Z-slab databases without connecting endpoints across slab
+boundaries:
+
+```bash
+segfiber merge \
+  --input-dir out/slabs \
+  --output out/segmentation.db \
+  --reset
+```
