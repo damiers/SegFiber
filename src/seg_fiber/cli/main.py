@@ -18,7 +18,8 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    return args.handler(args)
+    args.handler(args)
+    return 0
 
 
 if __name__ == "__main__":
